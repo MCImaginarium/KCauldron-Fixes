@@ -5,6 +5,7 @@
 package ic2.core.energy;
 
 import java.util.Collection;
+import java.util.Collections;
 import net.minecraft.init.Blocks;
 import net.minecraftforge.common.util.ForgeDirection;
 import net.minecraft.entity.Entity;
@@ -220,7 +221,7 @@ public class EnergyNetLocal
             final EnergyTransferList list = EnergyNetLocal.list;
             energySourceToEnergyPathMap.put(energySource, this.discover(emitter, reverse, EnergyTransferList.getMaxEnergy(energySource, amount)));
         }
-        List<EnergyPath> activeEnergyPaths = new Vector<EnergyPath>();
+        List<EnergyPath> activeEnergyPaths = Collections.synchronizedList(new ArrayList<EnergyPath>());
         double totalInvLoss = 0.0;
         final double source = energySource.getSourceTier();
         for (final EnergyPath energyPath : this.energySourceToEnergyPathMap.get(energySource)) {
@@ -248,7 +249,7 @@ public class EnergyNetLocal
             int energyConsumed = 0;
             double newTotalInvLoss = 0.0;
             final List<EnergyPath> currentActiveEnergyPaths = activeEnergyPaths;
-            activeEnergyPaths = new Vector<EnergyPath>();
+            activeEnergyPaths = Collections.synchronizedList(new ArrayList<EnergyPath>());
             activeEnergyPaths.iterator();
             for (final EnergyPath energyPath2 : currentActiveEnergyPaths) {
                 final IEnergySink energySink2 = (IEnergySink)energyPath2.target;
