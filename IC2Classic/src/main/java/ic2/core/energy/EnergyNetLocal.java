@@ -106,6 +106,7 @@ public class EnergyNetLocal
     
     public void removeTileEntity(final ChunkCoordinates coords, final TileEntity tile) {
         if (tile instanceof IEnergySink) { this.energySourceToEnergyPathMap.ies.remove((IEnergySink)tile); } // Robotia single line
+        if (tile instanceof IEnergyConductor) { this.energySourceToEnergyPathMap.ies.remove((IEnergyConductor)tile); } // Robotia single line
 
         if (!(tile instanceof IEnergyTile) || !this.registeredTiles.containsKey(coords)) {
             final boolean alreadyRemoved = !this.registeredTiles.containsKey(coords);
@@ -444,6 +445,7 @@ public class EnergyNetLocal
                             energyPath.maxZ = tileEntity.zCoord;
                         }
                         energyPath.conductors.add(energyConductor);
+			this.energySourceToEnergyPathMap.addConductor((TileEntity)energyConductor, energyPath);
                         if (energyConductor.getInsulationEnergyAbsorption() < energyPath.minInsulationEnergyAbsorption) {
                             energyPath.minInsulationEnergyAbsorption = (int)energyConductor.getInsulationEnergyAbsorption();
                         }
@@ -798,10 +800,12 @@ public class EnergyNetLocal
         Map<IEnergySource, List<EnergyPath>> senderPath;
         Map<EnergyPath, IEnergySource> pathToSender;
         Map<IEnergySink, HashSet<EnergyPath>> ies; // Robotia
+        Map<IEnergyConductor, HashSet<EnergyPath>> iec; // Robotia
         EnergyPathMap() {
             this.senderPath = new HashMap<IEnergySource, List<EnergyPath>>();
             this.pathToSender = new HashMap<EnergyPath, IEnergySource>();
 	    this.ies = new HashMap<IEnergySink, HashSet<EnergyPath>>(); // Robotia
+	    this.iec = new HashMap<IEnergyConductor, HashSet<EnergyPath>>(); // Robotia
         }
         
         public void put(final IEnergySource par1, final List<EnergyPath> par2) {
@@ -856,6 +860,18 @@ public class EnergyNetLocal
 	    }
 	    nal.add(ep);
 	}
+
+        public void addConductor(TileEntity te, EnergyPath ep)
+	{
+	    IEnergyConductor ie = (IEnergyConductor)te;
+	    HashSet<EnergyPath> nal = iec.get(ie);
+	    if(nal == null)
+	    {
+		nal = new HashSet<EnergyPath>();
+		iec.put(ie,nal);
+	    }
+	    nal.add(ep);
+	}
 	// Robotia stop
         
         public List<IEnergySource> getSources(final IEnergyAcceptor par1) {
@@ -863,6 +879,18 @@ public class EnergyNetLocal
 	    if(par1 instanceof IEnergySink)
 	    {
 		HashSet<EnergyPath> paths = ies.get(par1);
+		ArrayList<IEnergySource> list = new ArrayList<IEnergySource>();
+		if( paths == null) return list;
+		for(EnergyPath ep : paths)
+		{
+		    IEnergySource iens = this.pathToSender.get(ep);
+		    if(iens != null && !((TileEntity)iens).isInvalid()) list.add(iens);
+		}
+		return list;
+	    }
+	    else if(par1 instanceof IEnergyConductor)
+	    {
+		HashSet<EnergyPath> paths = iec.get(par1);
 		ArrayList<IEnergySource> list = new ArrayList<IEnergySource>();
 		if( paths == null) return list;
 		for(EnergyPath ep : paths)
