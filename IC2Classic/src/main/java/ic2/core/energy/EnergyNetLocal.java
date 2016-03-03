@@ -4,11 +4,10 @@
 
 package ic2.core.energy;
 
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.Collection;
 import net.minecraft.init.Blocks;
 import net.minecraftforge.common.util.ForgeDirection;
-import net.minecraft.entity.*;
+import net.minecraft.entity.Entity;
 import ic2.core.ExplosionIC2;
 import ic2.api.energy.NodeStats;
 import ic2.api.energy.tile.IMultiEnergySource;
@@ -92,20 +91,8 @@ public class EnergyNetLocal
             this.sources.put(coords, (IEnergySource)tile);
         }
     }
-    HashSet<TileEntity> ttr = new HashSet<TileEntity>();
-    long last = 0L;
+    
     public void removeTile(final TileEntity par1) {
-	ttr.add(par1);
-	removeTileReal(par1);
-	if((ttr.size() > 10 && System.currentTimeMillis() - last < 100L) || (ttr.size() <= 10 && System.currentTimeMillis() - last < 5000L))return;
-	last = System.currentTimeMillis();
-/*	for(TileEntity te : ttr)
-	{
-	}*/
-        this.energySourceToEnergyPathMap.cleanup(ttr);
-	ttr.clear();
-}
-    public void removeTileReal(final TileEntity par1) {
         if (par1 instanceof IMetaDelegate) {
             final List<TileEntity> tiles = ((IMetaDelegate)par1).getSubTiles();
             for (final TileEntity tile : tiles) {
@@ -116,7 +103,10 @@ public class EnergyNetLocal
             this.removeTileEntity(coords(par1), par1);
         }
     }
+    
     public void removeTileEntity(final ChunkCoordinates coords, final TileEntity tile) {
+        if (tile instanceof IEnergySink) { this.energySourceToEnergyPathMap.ies.remove((IEnergySink)tile); } // Robotia single line
+
         if (!(tile instanceof IEnergyTile) || !this.registeredTiles.containsKey(coords)) {
             final boolean alreadyRemoved = !this.registeredTiles.containsKey(coords);
             if (!alreadyRemoved) {
@@ -127,7 +117,7 @@ public class EnergyNetLocal
         this.registeredTiles.remove(coords);
         this.update(coords.posX, coords.posY, coords.posZ);
         if (tile instanceof IEnergyAcceptor) {
-            //this.energySourceToEnergyPathMap.removeAll(this.energySourceToEnergyPathMap.getSources((IEnergyAcceptor)tile));
+            this.energySourceToEnergyPathMap.removeAll(this.energySourceToEnergyPathMap.getSources((IEnergyAcceptor)tile));
             this.waitingList.onTileEntityRemoved(tile);
         }
         if (tile instanceof IEnergySource) {
@@ -235,10 +225,10 @@ public class EnergyNetLocal
         for (final EnergyPath energyPath : this.energySourceToEnergyPathMap.get(energySource)) {
             assert energyPath.target instanceof IEnergySink;
             final IEnergySink energySink = (IEnergySink)energyPath.target;
-            if (energyPath.loss >= amount) {
+            if (energySink.getDemandedEnergy() <= 0.0) {
                 continue;
             }
-            if (energySink.getDemandedEnergy() <= 0.0) {
+            if (energyPath.loss >= amount) {
                 continue;
             }
             if (IC2.enableIC2EasyMode && this.conductorToWeak(energyPath.conductors, amount)) {
@@ -418,6 +408,12 @@ public class EnergyNetLocal
                     energyPath.loss = 0.1;
                 }
                 energyPath.target = tileEntity;
+
+		// Robotia start
+		if(tileEntity instanceof IEnergySink)
+	                this.energySourceToEnergyPathMap.addSink(tileEntity, energyPath);
+		// Robotia stop
+
                 energyPath.targetDirection = energyBlockLink.direction;
                 if (!reverse && emitter instanceof IEnergySource) {
                     while (true) {
@@ -696,7 +692,10 @@ public class EnergyNetLocal
     
     public TileEntity getTileEntity(final int x, final int y, final int z) {
         final ChunkCoordinates coords = new ChunkCoordinates(x, y, z);
-	return (TileEntity)this.registeredTiles.get(coords);
+        if (this.registeredTiles.containsKey(coords)) {
+            return (TileEntity)this.registeredTiles.get(coords);
+        }
+        return null;
     }
     
     public NodeStats getNodeStats(final TileEntity tile) {
@@ -797,14 +796,12 @@ public class EnergyNetLocal
     static class EnergyPathMap
     {
         Map<IEnergySource, List<EnergyPath>> senderPath;
-
         Map<EnergyPath, IEnergySource> pathToSender;
-
-        HashSet<IEnergyAcceptor> acc;
+        Map<IEnergySink, HashSet<EnergyPath>> ies; // Robotia
         EnergyPathMap() {
             this.senderPath = new HashMap<IEnergySource, List<EnergyPath>>();
-            this.pathToSender = new LinkedHashMap<EnergyPath, IEnergySource>();
-	    this.acc = new HashSet<IEnergyAcceptor>();
+            this.pathToSender = new HashMap<EnergyPath, IEnergySource>();
+	    this.ies = new HashMap<IEnergySink, HashSet<EnergyPath>>(); // Robotia
         }
         
         public void put(final IEnergySource par1, final List<EnergyPath> par2) {
@@ -831,16 +828,9 @@ public class EnergyNetLocal
             }
         }
         
-        public void removeAll(final Collection<IEnergySource> para) {
-            for (IEnergySource par1 : para) {
-
-            final List<EnergyPath> paths = this.senderPath.remove(par1);
-            if (paths != null) {
-                for (int i = 0; i < paths.size(); ++i) {
-                    this.pathToSender.remove(paths.get(i));
-                }
-            }
-
+        public void removeAll(final List<IEnergySource> par1) {
+            for (int i = 0; i < par1.size(); ++i) {
+                this.remove(par1.get(i));
             }
         }
         
@@ -854,50 +844,47 @@ public class EnergyNetLocal
             return paths;
         }
 
-	public void cleanup(HashSet<TileEntity> ts)
+	// Robotia start
+        public void addSink(TileEntity te, EnergyPath ep)
 	{
-	    Iterator<Map.Entry<EnergyPath,IEnergySource>> it = this.pathToSender.entrySet().iterator();
-
-            while (it.hasNext()) {
-		Map.Entry<EnergyPath,IEnergySource> entry = it.next();
-                final EnergyPath path = entry.getKey();
-		boolean delete = false;
-                for(TileEntity te: ts)
-		{
-			if(delete)break;
-			if(!(te instanceof IEnergyAcceptor))continue;
-			IEnergyAcceptor par1 = (IEnergyAcceptor)te;
-                	if ((!(par1 instanceof IEnergyConductor) || !path.conductors.contains(par1)) && (!(par1 instanceof IEnergySink) || path.target != par1)) {
-                    		continue;
-                	}
-                        delete = true;
-		}
-		if(delete)
-                    it.remove();
-            }
+	    IEnergySink ie = (IEnergySink)te;
+	    HashSet<EnergyPath> nal = ies.get(ie);
+	    if(nal == null)
+	    {
+		nal = new HashSet<EnergyPath>();
+		ies.put(ie,nal);
+	    }
+	    nal.add(ep);
 	}
-
-/*        TileEntity target;
-        Direction targetDirection;
-        Set<IEnergyConductor> conductors;
-*/
-        public HashSet<IEnergySource> getSources(final IEnergyAcceptor par1) {
-            HashSet<IEnergySource> srcs = new HashSet<>();
-            //return this.pathToSender.entrySet().stream().filter( e ->  !((!(par1 instanceof IEnergyConductor) || !e.getKey().conductors.contains(par1)) && (!(par1 instanceof IEnergySink) || e.getKey().target != par1))).map(e -> e.getValue()).collect(Collectors.toList());
-            /*for (final EnergyPath path : this.pathToSender.keySet()) {
-                if ((!(par1 instanceof IEnergyConductor) || !path.conductors.contains(par1)) && (!(par1 instanceof IEnergySink) || path.target != par1)) {
+	// Robotia stop
+        
+        public List<IEnergySource> getSources(final IEnergyAcceptor par1) {
+	    // Robotia start
+	    if(par1 instanceof IEnergySink)
+	    {
+		HashSet<EnergyPath> paths = ies.get(par1);
+		ArrayList<IEnergySource> list = new ArrayList<IEnergySource>();
+		if( paths == null) return list;
+		for(EnergyPath ep : paths)
+		{
+		    IEnergySource iens = this.pathToSender.get(ep);
+		    if(iens != null && !((TileEntity)iens).isInvalid()) list.add(iens);
+		}
+		return list;
+	    }
+            // Robotia stop
+            final List<IEnergySource> source = new ArrayList<IEnergySource>();
+            for (final Map.Entry<EnergyPath, IEnergySource> entry : this.pathToSender.entrySet()) {
+                if (source.contains(entry.getValue())) {
                     continue;
                 }
-                srcs.add(pathToSender.get(path));
-            }*/
-            for (final Map.Entry<EnergyPath, IEnergySource> entry : this.pathToSender.entrySet()) {
                 final EnergyPath path = entry.getKey();
                 if ((!(par1 instanceof IEnergyConductor) || !path.conductors.contains(par1)) && (!(par1 instanceof IEnergySink) || path.target != par1)) {
                     continue;
                 }
-                srcs.add(entry.getValue());
+                source.add(entry.getValue());
             }
-            return srcs;
+            return source;
         }
         
         public void clear() {

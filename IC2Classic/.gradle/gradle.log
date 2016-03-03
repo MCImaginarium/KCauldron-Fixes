@@ -19,9 +19,9 @@
 :processApiResources UP-TO-DATE
 :apiClasses UP-TO-DATE
 :sourceMainJava
-:compileJavaNote: /home/fracica/ksrc/IC2/forger/build/sources/java/ic2/core/energy/EnergyNetGlobal.java uses or overrides a deprecated API.
+:compileJavaNote: /home/fracica/ksrc/Fixes/IC2Classic/build/sources/java/ic2/core/energy/EnergyNetGlobal.java uses or overrides a deprecated API.
 Note: Recompile with -Xlint:deprecation for details.
-Note: /home/fracica/ksrc/IC2/forger/build/sources/java/ic2/core/energy/EnergyNetLocal.java uses unchecked or unsafe operations.
+Note: /home/fracica/ksrc/Fixes/IC2Classic/build/sources/java/ic2/core/energy/EnergyNetLocal.java uses unchecked or unsafe operations.
 Note: Recompile with -Xlint:unchecked for details.
 
 :processResources UP-TO-DATE
@@ -38,4 +38,4 @@ Note: Recompile with -Xlint:unchecked for details.
 
 BUILD SUCCESSFUL
 
-Total time: 12.324 secs
+Total time: 8.817 secs
