@@ -125,7 +125,7 @@ public class EnergyNetLocal
             this.energySourceToEnergyPathMap.remove(tile);
         }
         if (tile instanceof IEnergySink) { this.energySourceToEnergyPathMap.ies.remove((IEnergySink)tile); } // Robotia single line
-        if (tile instanceof IEnergyConductor) { this.energySourceToEnergyPathMap.ies.remove((IEnergyConductor)tile); } // Robotia single line
+        if (tile instanceof IEnergyConductor) { this.energySourceToEnergyPathMap.iec.remove((IEnergyConductor)tile); } // Robotia single line
     }
     
     public List<PacketStat> getSendedPackets(final TileEntity tileEntity) {
@@ -780,7 +780,7 @@ public class EnergyNetLocal
         
         EnergyPath() {
             this.target = null;
-            this.conductors = new HashSet<IEnergyConductor>();
+            this.conductors = new LinkedHashSet<IEnergyConductor>();
             this.minX = Integer.MAX_VALUE;
             this.minY = Integer.MAX_VALUE;
             this.minZ = Integer.MAX_VALUE;
